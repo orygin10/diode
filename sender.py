@@ -14,7 +14,7 @@ def sha256_file_checksum(filename, block_size=65536):
             sha256.update(block)
     return sha256.hexdigest()
 
-def sha256_data_checksum(raw_data):
+def sha256(raw_data):
     sha256 = hashlib.sha256()
     sha256.update(raw_data)
     return sha256.hexdigest()
@@ -39,22 +39,20 @@ class Connection():
 
     def send_packet(self, packet_data):
         self.s.sendto(packet_data, self.addr)
-
-    def sec_send_packet(self, packet_data):
-        self.send_packet(packet_data)
-        self.send_packet(sha256_data_checksum(packet_data))
-        time.sleep(0.00001)
-
-    def send_file(self, file_name):
-        file = File(file_name)
-        data = file.read(self.buf)
-        while (data):
-            print "sending ..."
-            self.sec_send_packet(data)
-            data = file.read(self.buf)
+        time.sleep(1.0/100000.0)
 
     def __del__(self):
         self.s.close()
+
+def send_file(con, file_name):
+    file = File(file_name)
+
+    print 'Sending...'
+    block = file.read(con.buf)
+    while (block):
+        data = block + sha256(block)
+        con.send_packet(data)
+        block = file.read(con.buf)
 
 def main():
     file_name = sys.argv[2]
@@ -63,7 +61,7 @@ def main():
     con = Connection(host)
 
     con.send_packet(file_name)
-    con.send_file(file_name)
+    send_file(con, file_name)
     con.send_packet('EOF')
 
     con.send_packet(sha256_file_checksum(file_name))

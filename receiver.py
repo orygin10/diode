@@ -34,7 +34,7 @@ class Connection():
         self.s = socket(AF_INET, SOCK_DGRAM)
         host = "0.0.0.0"
         port = 9999
-        self.buf = 1024
+        self.buf = 1024 + 64
         self.addr = (host, port)
 
         self.s.bind(self.addr)
@@ -61,24 +61,19 @@ def print_files_checksums(con, file_name):
 def receive_file(con, file_name):
     f = File(file_name)
 
-    data = con.receive_packet()
-    while not data=='EOF':
-        checksum = con.receive_packet()
-        if checksum == sha256(data):
-            f.write(data)
-            sys.stdout.write('Checksum OK. Write data to file.\n')
-        elif len(checksum) == 1024:
-            sys.stdout.write('Checksum not received. ')
-            f.write(data)
-            f.write(checksum)
-            sys.stdout.write('Write data and recovered data to file.\n')
-        elif len(checksum) == 64:
-            raise SystemExit('Checksums do not match')
-        else:
-            raise SystemExit('Checksum is neither 64 nor 1024 bytes')
-        data = con.receive_packet()
+    block = con.receive_packet()
+    while not block == 'EOF':
+        data = block[:-64]
+        checksum = block[-64:]
 
-    sys.stdout.flush()
+        if sha256(data) == checksum:
+            f.write(data)
+        else:
+            print 'Checksums do not match'
+            print 'Hoping for %s' % checksum
+            print 'Got %s' % sha256(data)
+            raise SystemExit()
+        block = con.receive_packet()
 
 def main():
     con = Connection()
