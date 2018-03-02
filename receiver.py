@@ -34,7 +34,7 @@ class Connection():
         self.s = socket(AF_INET, SOCK_DGRAM)
         host = "0.0.0.0"
         port = 9999
-        self.buf = 1024 + 64
+        self.buf = 1024 + 64 + 8
         self.addr = (host, port)
 
         self.s.bind(self.addr)
@@ -58,22 +58,44 @@ def print_files_checksums(con, file_name):
     received_sha = sha256_file_checksum(file_name)
     print "Received SHA-256: %s" % received_sha
 
+def parse_block(block):
+    data = block[:-64-8]
+    checksum = block[-64-8:-8]
+    number = block[-8:]
+    numberd = int(number, 16)
+
+    return data, checksum, numberd
+
+def write_queue_to_file(queue, file):
+    print 'Queue contains %s elements' % len(queue)
+    if all(queue[i] <= queue[i+1] for i in xrange(len(queue)-1)):
+        print 'No packets are unsorted'
+    else:
+        print 'Sorting queue'
+        sorted(queue, key=lambda x: x[0])
+    for data in [x[1] for x in queue]:
+        file.write(data)
+
 def receive_file(con, file_name):
-    f = File(file_name)
+    file = File(file_name)
+    queue = list()
 
     block = con.receive_packet()
     while not block == 'EOF':
-        data = block[:-64]
-        checksum = block[-64:]
+        data, checksum, numberd = parse_block(block)
+
+        #print 'Block %d: %s' %(numberd,''.join([hex(ord(x))[2:] for x in data[:2]]))
 
         if sha256(data) == checksum:
-            f.write(data)
+            queue.append( (numberd, data) )
         else:
             print 'Checksums do not match'
             print 'Hoping for %s' % checksum
             print 'Got %s' % sha256(data)
             raise SystemExit()
+
         block = con.receive_packet()
+    write_queue_to_file(queue, file)
 
 def main():
     con = Connection()

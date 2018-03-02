@@ -46,13 +46,17 @@ class Connection():
 
 def send_file(con, file_name):
     file = File(file_name)
+    num = lambda x: hex(x).split('x')[-1].rjust(8, '0')
+    cpt = 0
 
     print 'Sending...'
-    block = file.read(con.buf)
-    while (block):
-        data = block + sha256(block)
-        con.send_packet(data)
-        block = file.read(con.buf)
+    data = file.read(con.buf)
+    while (data):
+        block = data + sha256(data) + num(cpt)
+        con.send_packet(block)
+        data = file.read(con.buf)
+        cpt += 1
+    print '%d packet sent' % cpt
 
 def main():
     file_name = sys.argv[2]
